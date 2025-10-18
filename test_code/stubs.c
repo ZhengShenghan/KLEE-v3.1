@@ -37,7 +37,8 @@ struct usb_hcd *usb_create_shared_hcd(const struct hc_driver *driver,
                                       const char *name,
                                       struct usb_hcd *primary_hcd) {
     (void)primary_hcd;
-    return usb_create_hcd(driver, dev, name);
+    return usb_create_hcd(driver, dev, name);  
+    
 }
 
 /* No-op put */
