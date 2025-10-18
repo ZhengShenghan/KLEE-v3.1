@@ -122,6 +122,7 @@ static constexpr std::array handlerInfo = {
   add("malloc", handleMalloc, true),
   add("memalign", handleMemalign, true),
   add("realloc", handleRealloc, true),
+  add("xhci_plat_probe", handleXhciPlatProbe, true),
 
 #ifdef SUPPORT_KLEE_EH_CXX
   add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl, false),
@@ -286,6 +287,21 @@ void SpecialFunctionHandler::handleAssert(ExecutionState &state,
   executor.terminateStateOnProgramError(
       state, "ASSERTION FAIL: " + readStringAtAddress(state, arguments[0]),
       StateTerminationType::Assert);
+}
+
+void SpecialFunctionHandler::handleXhciPlatProbe(
+    ExecutionState &state,
+    KInstruction *target,
+    std::vector<ref<Expr>> &arguments) {
+  // Always bypass: return 0 immediately.
+  // Match the call's actual return bit-width (usually 32 bits for 'int').
+  unsigned retBits =
+      executor.kmodule->targetData->getTypeSizeInBits(target->inst->getType());
+  if (retBits == 0) retBits = 32; // fallback, just in case
+
+  executor.bindLocal(
+      target, state,
+      ConstantExpr::create(/*value=*/0, /*bits=*/retBits));
 }
 
 void SpecialFunctionHandler::handleAssertFail(

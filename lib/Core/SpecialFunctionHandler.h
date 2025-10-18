@@ -119,6 +119,7 @@ namespace klee {
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);
+    HANDLER(handleXhciPlatProbe);    // int xhci_plat_probe(struct platform_device*)
 #undef HANDLER
   };
 } // End klee namespace
