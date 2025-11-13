@@ -119,7 +119,19 @@ namespace klee {
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);
-    HANDLER(handleXhciPlatProbe);    // int xhci_plat_probe(struct platform_device*)
+    // HANDLER(handleXhciPlatProbe);    // int xhci_plat_probe(struct platform_device*)
+    // HANDLER(handleXhciGenericPlatProbe);
+    // HANDLER(handleUasProbe);
+    HANDLER(handleKleeUasUseUasDriver);
+    HANDLER(handleKleeUasSwitchInterface);
+    HANDLER(handleKleeUasConfigureEndpoints);
+    HANDLER(handleKleeScsiInitSharedTagMap);
+    HANDLER(handleKleeScsiAddHost);
+    HANDLER(handleKleeScsiScanHost);
+    HANDLER(handleKleeUasFreeStreams);
+    HANDLER(handleKleeUsbSetInterface);
+    HANDLER(handleKleeScsiHostPut);
+    HANDLER(handleKleeUsbSetIntfdata);
 #undef HANDLER
   };
 } // End klee namespace

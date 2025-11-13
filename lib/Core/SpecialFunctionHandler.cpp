@@ -122,7 +122,19 @@ static constexpr std::array handlerInfo = {
   add("malloc", handleMalloc, true),
   add("memalign", handleMemalign, true),
   add("realloc", handleRealloc, true),
-  add("xhci_plat_probe", handleXhciPlatProbe, true),
+  // add("xhci_plat_probe", handleXhciPlatProbe, true),
+  // add("xhci_generic_plat_probe", handleXhciGenericPlatProbe, true),
+  // add("uas_probe", handleUasProbe, true),
+  add("klee_uas_use_uas_driver", handleKleeUasUseUasDriver, true),
+  add("klee_uas_switch_interface", handleKleeUasSwitchInterface, true),
+  add("klee_uas_configure_endpoints", handleKleeUasConfigureEndpoints, true),
+  add("klee_scsi_init_shared_tag_map", handleKleeScsiInitSharedTagMap, true),
+  add("klee_scsi_add_host", handleKleeScsiAddHost, true),
+  add("klee_scsi_scan_host", handleKleeScsiScanHost, true),
+  add("klee_uas_free_streams", handleKleeUasFreeStreams, true),
+  add("klee_usb_set_interface", handleKleeUsbSetInterface, true),
+  add("klee_scsi_host_put", handleKleeScsiHostPut, true),
+  add("klee_usb_set_intfdata", handleKleeUsbSetIntfdata, true),
 
 #ifdef SUPPORT_KLEE_EH_CXX
   add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl, false),
@@ -173,6 +185,18 @@ void SpecialFunctionHandler::prepare(
         f->deleteBody();
     }
   }
+}
+
+static bool calledFrom(ExecutionState &state, const char *fname) {
+  const auto &stack = state.stack;
+  if (stack.empty())
+    return false;
+
+  const KFunction *kf = stack.back().kf;
+  if (!kf || !kf->function)
+    return false;
+
+  return kf->function->getName() == fname;
 }
 
 void SpecialFunctionHandler::bind() {
@@ -289,20 +313,117 @@ void SpecialFunctionHandler::handleAssert(ExecutionState &state,
       StateTerminationType::Assert);
 }
 
-void SpecialFunctionHandler::handleXhciPlatProbe(
-    ExecutionState &state,
-    KInstruction *target,
-    std::vector<ref<Expr>> &arguments) {
-  // Always bypass: return 0 immediately.
-  // Match the call's actual return bit-width (usually 32 bits for 'int').
-  unsigned retBits =
-      executor.kmodule->targetData->getTypeSizeInBits(target->inst->getType());
-  if (retBits == 0) retBits = 32; // fallback, just in case
-
-  executor.bindLocal(
-      target, state,
-      ConstantExpr::create(/*value=*/0, /*bits=*/retBits));
+static void assumeNonNullPtr(klee::Executor &executor,
+                             klee::ExecutionState &state,
+                             const klee::ref<klee::Expr> &ptr,
+                             const char *name) {
+  using namespace klee;
+  Expr::Width PW = Context::get().getPointerWidth();
+  ref<Expr> isNonNull = NeExpr::create(ptr, ConstantExpr::create(0, PW));
+  klee_message("[probe] assuming %s != NULL", name);
+  executor.addConstraint(state, isNonNull);
 }
+
+void SpecialFunctionHandler::handleKleeUasUseUasDriver(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 3 && "uas_use_uas_driver expects 3 args");
+
+  // Optional: zero flags_ret if resolvable (keeps invariants simple)
+  // if (auto *CE = dyn_cast<ConstantExpr>(args[2])) {
+  //   ObjectPair op;
+  //   if (state.addressSpace.resolveOne(CE, op)) {
+  //     executor.executeMemoryOperation(state, /*isWrite=*/true,
+  //                                     args[2], ConstantExpr::create(0, Expr::Int64), 0);
+  //   }
+  // }
+
+  // Return 1 
+  executor.bindLocal(target, state, ConstantExpr::create(1, Expr::Int32));
+}
+
+// --- uas_switch_interface(udev, intf) -> int
+void SpecialFunctionHandler::handleKleeUasSwitchInterface(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 2 && "uas_switch_interface expects 2 args");
+  executor.bindLocal(target, state, ConstantExpr::create(0, Expr::Int32));
+}
+
+// --- uas_configure_endpoints(devinfo) -> int
+void SpecialFunctionHandler::handleKleeUasConfigureEndpoints(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 1 && "uas_configure_endpoints expects 1 arg");
+  executor.bindLocal(target, state, ConstantExpr::create(0, Expr::Int32));
+}
+
+// --- scsi_init_shared_tag_map(shost, depth) -> int
+void SpecialFunctionHandler::handleKleeScsiInitSharedTagMap(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 2 && "scsi_init_shared_tag_map expects 2 args");
+  executor.bindLocal(target, state, ConstantExpr::create(0, Expr::Int32));
+}
+
+// --- scsi_add_host(shost, dev) -> int
+void SpecialFunctionHandler::handleKleeScsiAddHost(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 2 && "scsi_add_host expects 2 args");
+  executor.bindLocal(target, state, ConstantExpr::create(0, Expr::Int32));
+}
+
+// --- scsi_scan_host(shost) -> void
+void SpecialFunctionHandler::handleKleeScsiScanHost(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 1 && "scsi_scan_host expects 1 arg");
+  // no-op
+}
+
+// --- uas_free_streams(devinfo) -> void
+void SpecialFunctionHandler::handleKleeUasFreeStreams(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 1 && "uas_free_streams expects 1 arg");
+  // no-op
+}
+
+// --- usb_set_interface(udev, ifnum, alt) -> int
+void SpecialFunctionHandler::handleKleeUsbSetInterface(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 3 && "usb_set_interface expects 3 args");
+  executor.bindLocal(target, state, ConstantExpr::create(0, Expr::Int32));
+}
+
+// --- scsi_host_put(shost) -> void
+void SpecialFunctionHandler::handleKleeScsiHostPut(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 1 && "scsi_host_put expects 1 arg");
+  // no-op
+}
+
+// --- usb_set_intfdata(intf, data) -> void
+void SpecialFunctionHandler::handleKleeUsbSetIntfdata(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &args) {
+  using namespace klee;
+  assert(args.size() == 2 && "usb_set_intfdata expects 2 args");
+  // no-op (optional: maintain a side map intf->data if later retrieval matters)
+}
+
 
 void SpecialFunctionHandler::handleAssertFail(
     ExecutionState &state, KInstruction *target,
